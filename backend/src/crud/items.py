@@ -1,0 +1,64 @@
+from sqlalchemy.orm import Session
+from fastapi import HTTPException
+from typing import List
+from ..models import models
+from ..schemas import items as schemas
+
+def get_all_items(db: Session) -> List[models.Item]:
+    return db.query(models.Item).all()
+
+def create_item(db: Session, item: schemas.ItemCreate) -> models.Item:
+    category = db.query(models.Category).filter(models.Category.id == item.category_id).first()
+    if not category:
+        raise HTTPException(status_code=400, detail="The specified category does not exist.")
+
+    new_item = models.Item(
+        name=item.name,
+        category_id=item.category_id,
+        target_quantity=item.target_quantity,
+        unit=item.unit,
+        active=item.active
+    )
+
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+
+    return new_item
+
+def get_item(db: Session, item_id: str) -> models.Item:
+    item = db.query(models.Item).filter(models.Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
+
+def update_item(db: Session, item_id: str, item_data: schemas.ItemCreate) -> models.Item:
+    item = get_item(db, item_id)
+
+    item.name = item_data.name
+    item.category_id = item_data.category_id
+    item.target_quantity = item_data.target_quantity
+    item.unit = item_data.unit
+    item.active = item_data.active
+
+    db.commit()
+    db.refresh(item)
+    return item
+
+def delete_item(db: Session, item_id: str):
+    item = get_item(db, item_id)
+
+    db.delete(item)
+    db.commit()
+
+    return {"message": "Item deleted!"}
+
+def toggle_item_active(db: Session, item_id: str) -> models.Item:
+    item = get_item(db, item_id)
+
+    item.active = not item.active
+
+    db.commit()
+    db.refresh(item)
+
+    return item
