@@ -28,7 +28,7 @@ def add_item_to_list(db: Session, list_id: str, item_data: schemas.ListItemCreat
     if current_list.status != "draft":
         raise HTTPException(status_code=400, detail="Cannot add items to a list that isn't in draft status")
 
-    item_exists = db.query(exists(db.query(models.Item).filter(models.Item.id == item_data.item_id))).scalar()
+    item_exists = db.query(exists(db.query(models.Item).filter(models.Item.id == item_data.item_id).subquery())).scalar()
     if not item_exists:
         raise HTTPException(status_code=404, detail="Item not found")
 
