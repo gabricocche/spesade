@@ -1,7 +1,7 @@
 import uuid
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql import func
-from database import Base
+from backend.src.core.database import Base
 
 class Category(Base):
     __tablename__ = "categories"

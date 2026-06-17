@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List
 
-from database import get_db
-import models
+from backend.src.core.database import get_db
+from ..models import models
 
 router = APIRouter()
 
@@ -24,7 +24,6 @@ class CategoryResponse(BaseModel):
 
 @router.get("/", response_model=List[CategoryResponse])
 def get_categories(db: Session = Depends(get_db)):
-    """Fetch all categories from the database."""
     return db.query(models.Category).all()
 
 @router.post("/", response_model=CategoryResponse, status_code=201)
