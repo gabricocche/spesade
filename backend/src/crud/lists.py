@@ -6,7 +6,7 @@ from ..models import models
 from ..schemas import lists as schemas
 from .base import commit_and_refresh
 
-VALID_STATUSES = ["draft", "pending", "completed", "cancelled"]
+VALID_STATUSES = [status.value for status in schemas.ListStatus]
 
 def get_all_lists(db: Session) -> List[models.List]:
     return db.query(models.List).all()
@@ -32,6 +32,18 @@ def add_item_to_list(db: Session, list_id: str, item_data: schemas.ListItemCreat
     if not item_exists:
         raise HTTPException(status_code=404, detail="Item not found")
 
+    if item_data.quantity <= 0:
+        raise HTTPException(status_code=400, detail="Quantity must be greater than zero.")
+
+    list_item = db.query(models.ListItem).filter(
+        models.ListItem.list_id == list_id,
+        models.ListItem.item_id == item_data.item_id
+    ).first()
+
+    if list_item:
+        list_item.quantity += item_data.quantity
+        return {"message": "Product quantity updated in list", "item_id": commit_and_refresh(db, list_item).item_id}
+
     new_list_item = models.ListItem(
         list_id=list_id,
         item_id=item_data.item_id,
@@ -45,12 +57,13 @@ def get_list_details(db: Session, list_id: str):
     current_list = get_list(db, list_id)
 
     items_in_list = db.query(
+        models.ListItem.item_id,
         models.Item.name,
         models.Item.category_id,
         models.ListItem.quantity,
         models.ListItem.bought
     ).join(
-        models.ListItem, models.Item.id == models.ListItem.item_id
+        models.Item, models.Item.id == models.ListItem.item_id
     ).filter(
         models.ListItem.list_id == list_id
     ).all()
@@ -58,6 +71,7 @@ def get_list_details(db: Session, list_id: str):
     result = []
     for row in items_in_list:
         result.append({
+            "item_id": row.item_id,
             "product_name": row.name,
             "quantity": row.quantity,
             "bought": row.bought
@@ -107,24 +121,37 @@ def auto_generate_list_items(db: Session, list_id: str, request_data: schemas.Au
     all_items = db.query(models.Item).filter(models.Item.active).all()
 
     added_count = 0
+    updated_count = 0
 
     for item in all_items:
         current_qty = inventory_dict.get(item.id, 0)
         needed_quantity = item.target_quantity - current_qty
 
-        if needed_quantity > 0:
-            new_list_item = models.ListItem(
+        if needed_quantity <= 0:
+            continue
+
+        list_item = db.query(models.ListItem).filter(
+            models.ListItem.list_id == list_id,
+            models.ListItem.item_id == item.id
+        ).first()
+
+        if list_item:
+            if list_item.quantity < needed_quantity:
+                list_item.quantity = needed_quantity
+                updated_count += 1
+        else:
+            list_item = models.ListItem(
                 list_id=list_id,
                 item_id=item.id,
                 quantity=needed_quantity
             )
-            db.add(new_list_item)
+            db.add(list_item)
             added_count += 1
 
     db.commit()
 
     return {
-        "message": f"Auto-generation complete! Added {added_count} products to the list.",
+        "message": f"Auto-generation complete! Added {added_count} products and updated {updated_count} existing products.",
         "list_id": list_id
     }
 

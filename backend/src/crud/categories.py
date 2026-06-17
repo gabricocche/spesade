@@ -16,12 +16,24 @@ def get_category(db: Session, category_id: str) -> models.Category:
     return category
 
 def create_category(db: Session, category_data: schemas.CategoryCreate) -> models.Category:
+    duplicate_exists = db.query(exists(db.query(models.Category).filter(models.Category.name == category_data.name).subquery())).scalar()
+    if duplicate_exists:
+        raise HTTPException(status_code=400, detail="A category with this name already exists.")
+
     new_category = models.Category(name=category_data.name)
     db.add(new_category)
     return commit_and_refresh(db, new_category)
 
 def update_category(db: Session, category_id: str, category_data: schemas.CategoryCreate) -> models.Category:
     category = get_category(db, category_id)
+
+    duplicate_exists = db.query(exists(db.query(models.Category).filter(
+        models.Category.id != category_id,
+        models.Category.name == category_data.name
+    ).subquery())).scalar()
+    if duplicate_exists:
+        raise HTTPException(status_code=400, detail="A category with this name already exists.")
+
     category.name = category_data.name
     return commit_and_refresh(db, category)
 

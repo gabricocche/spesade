@@ -14,6 +14,13 @@ def create_item(db: Session, item: schemas.ItemCreate) -> models.Item:
     if not category_exists:
         raise HTTPException(status_code=400, detail="The specified category does not exist.")
 
+    duplicate_exists = db.query(exists(db.query(models.Item).filter(
+        models.Item.name == item.name,
+        models.Item.category_id == item.category_id
+    ).subquery())).scalar()
+    if duplicate_exists:
+        raise HTTPException(status_code=400, detail="A product with the same name already exists in this category.")
+
     new_item = models.Item(
         name=item.name,
         category_id=item.category_id,
@@ -37,6 +44,14 @@ def update_item(db: Session, item_id: str, item_data: schemas.ItemCreate) -> mod
     category_exists = db.query(exists(db.query(models.Category).filter(models.Category.id == item_data.category_id).subquery())).scalar()
     if not category_exists:
         raise HTTPException(status_code=400, detail="The specified category does not exist.")
+
+    duplicate_exists = db.query(exists(db.query(models.Item).filter(
+        models.Item.id != item_id,
+        models.Item.name == item_data.name,
+        models.Item.category_id == item_data.category_id
+    ).subquery())).scalar()
+    if duplicate_exists:
+        raise HTTPException(status_code=400, detail="A product with the same name already exists in this category.")
 
     item.name = item_data.name
     item.category_id = item_data.category_id

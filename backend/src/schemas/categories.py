@@ -1,8 +1,8 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 # schema per la creazione di una categoria (input)
 class CategoryCreate(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1)
 
 # schema per la risposta (output)
 class CategoryResponse(BaseModel):

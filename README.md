@@ -9,8 +9,9 @@ spesade/
 ├── backend/
 │   ├── src/
 │   │   ├── main.py          ← Entrypoint FastAPI e configurazione router
-│   │   ├── config.py        ← Gestione configurazioni e .env con Pydantic
-│   │   ├── database.py      ← Inizializzazione della connessione al DB
+│   │   ├── core/
+│   │   │   ├── config.py        ← Gestione configurazioni e .env con Pydantic
+│   │   │   ├── database.py      ← Inizializzazione della connessione al DB
 │   │   ├── models/          ← Modelli delle tabelle del database
 │   │   ├── schemas/         ← Schemi Pydantic per validazione Request/Response
 │   │   ├── crud/            ← Funzioni e query di interazione con il database
@@ -30,7 +31,7 @@ Assicurati di avere Python installato sul sistema. Per installare le dipendenze:
 uv sync
 
 # Metodo classico con pip
-pip install fastapi uvicorn streamlit pydantic-settings psycopg
+pip install fastapi uvicorn streamlit pydantic-settings psycopg2-binary requests
 ```
 
 ---
@@ -57,6 +58,12 @@ cd frontend
 streamlit run main.py
 ```
 L'interfaccia si aprirà automaticamente nel browser su `http://localhost:8501`.
+
+### 4. Esegui i test automatici
+```bash
+cd ..
+python -m unittest discover -s tests
+```
 
 ---
 

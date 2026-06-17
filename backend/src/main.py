@@ -4,14 +4,15 @@ from .core.database import engine, Base
 from .models import models # Importiamo i modelli affinché Base li "veda"
 from .routers import categories, items, lists
 
-# Diciamo a SQLAlchemy di creare le tabelle nel DB (se non esistono già)
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(
     title=settings.APP_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     version="1.0.0"
 )
+
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
 
 # Un endpoint di base per confermare che l'API è viva
 @app.get("/")
