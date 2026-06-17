@@ -38,3 +38,7 @@ def auto_generate_list_items(list_id: str, request_data: schemas.AutoGenerateReq
 @router.delete("/{list_id}/clear")
 def clear_list_items(list_id: str, db: Session = Depends(get_db)):
     return crud.clear_list_items(db, list_id)
+
+@router.delete("/{list_id}")
+def delete_list(list_id: str, db: Session = Depends(get_db)):
+    return crud.delete_list(db, list_id)

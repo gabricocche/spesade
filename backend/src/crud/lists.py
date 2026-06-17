@@ -1,8 +1,12 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import exists
 from fastapi import HTTPException
 from typing import List
 from ..models import models
 from ..schemas import lists as schemas
+from .base import commit_and_refresh
+
+VALID_STATUSES = ["draft", "pending", "completed", "cancelled"]
 
 def get_all_lists(db: Session) -> List[models.List]:
     return db.query(models.List).all()
@@ -10,9 +14,7 @@ def get_all_lists(db: Session) -> List[models.List]:
 def create_list(db: Session, list_data: schemas.ListCreate) -> models.List:
     new_list = models.List(name=list_data.name)
     db.add(new_list)
-    db.commit()
-    db.refresh(new_list)
-    return new_list
+    return commit_and_refresh(db, new_list)
 
 def get_list(db: Session, list_id: str) -> models.List:
     current_list = db.query(models.List).filter(models.List.id == list_id).first()
@@ -23,8 +25,11 @@ def get_list(db: Session, list_id: str) -> models.List:
 def add_item_to_list(db: Session, list_id: str, item_data: schemas.ListItemCreate):
     current_list = get_list(db, list_id)
 
-    item = db.query(models.Item).filter(models.Item.id == item_data.item_id).first()
-    if not item:
+    if current_list.status != "draft":
+        raise HTTPException(status_code=400, detail="Cannot add items to a list that isn't in draft status")
+
+    item_exists = db.query(exists(db.query(models.Item).filter(models.Item.id == item_data.item_id))).scalar()
+    if not item_exists:
         raise HTTPException(status_code=404, detail="Item not found")
 
     new_list_item = models.ListItem(
@@ -34,10 +39,7 @@ def add_item_to_list(db: Session, list_id: str, item_data: schemas.ListItemCreat
     )
 
     db.add(new_list_item)
-    db.commit()
-    db.refresh(new_list_item)
-
-    return {"message": "Product added to list", "item_id": new_list_item.item_id}
+    return {"message": "Product added to list", "item_id": commit_and_refresh(db, new_list_item).item_id}
 
 def get_list_details(db: Session, list_id: str):
     current_list = get_list(db, list_id)
@@ -68,6 +70,11 @@ def get_list_details(db: Session, list_id: str):
     }
 
 def toggle_item_bought(db: Session, list_id: str, item_id: str):
+    current_list = get_list(db, list_id)
+
+    if current_list.status != "draft":
+        raise HTTPException(status_code=400, detail="Cannot modify items in a list that isn't in draft status")
+
     list_item = db.query(models.ListItem).filter(
         models.ListItem.list_id == list_id,
         models.ListItem.item_id == item_id
@@ -78,23 +85,16 @@ def toggle_item_bought(db: Session, list_id: str, item_id: str):
 
     list_item.bought = not list_item.bought
 
-    db.commit()
-    db.refresh(list_item)
-
-    return {"message": "Product status changed", "bought": list_item.bought}
+    return {"message": "Product status changed", "bought": commit_and_refresh(db, list_item).bought}
 
 def update_list_status(db: Session, list_id: str, new_status: str):
     current_list = get_list(db, list_id)
 
-    valid_statuses = ["draft", "pending", "completed", "cancelled"]
-    if new_status.lower() not in valid_statuses:
-        raise HTTPException(status_code=400, detail=f"Invalid status. Choose from: {valid_statuses}")
+    if new_status.lower() not in VALID_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Choose from: {VALID_STATUSES}")
 
     current_list.status = new_status.lower()
-    db.commit()
-    db.refresh(current_list)
-
-    return {"message": "List status updated", "new_status": current_list.status}
+    return {"message": "List status updated", "new_status": commit_and_refresh(db, current_list).status}
 
 def auto_generate_list_items(db: Session, list_id: str, request_data: schemas.AutoGenerateRequest):
     current_list = get_list(db, list_id)
@@ -104,7 +104,7 @@ def auto_generate_list_items(db: Session, list_id: str, request_data: schemas.Au
 
     inventory_dict = {check.item_id: check.current_quantity for check in request_data.inventory}
 
-    all_items = db.query(models.Item).filter(models.Item.active == True).all()
+    all_items = db.query(models.Item).filter(models.Item.active).all()
 
     added_count = 0
 
@@ -141,4 +141,17 @@ def clear_list_items(db: Session, list_id: str):
     return {
         "message": "List cleared successfully!",
         "items_removed": deleted_rows
+    }
+
+def delete_list(db: Session, list_id: str):
+    current_list = get_list(db, list_id)
+
+    deleted_items = db.query(models.ListItem).filter(models.ListItem.list_id == list_id).delete()
+
+    db.delete(current_list)
+    db.commit()
+
+    return {
+        "message": "List deleted successfully!",
+        "items_removed": deleted_items
     }
